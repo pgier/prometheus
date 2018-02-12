@@ -33,11 +33,17 @@ func newClient(rt http.RoundTripper) *http.Client {
 
 // NewClientFromConfig returns a new HTTP client configured for the
 // given config.HTTPClientConfig. The name is used as go-conntrack metric label.
-func NewClientFromConfig(cfg config_util.HTTPClientConfig, name string) (*http.Client, error) {
-	tlsConfig, err := NewTLSConfig(cfg.TLSConfig)
-	if err != nil {
-		return nil, err
+func NewClientFromConfig(cfg config_util.HTTPClientConfig, name string,
+	tlsConfigs ...*tls.Config) (*http.Client, error) {
+
+	if len(tlsConfigs) == 0 {
+		tlsConfig, err := NewTLSConfig(cfg.TLSConfig)
+		if err != nil {
+			return nil, err
+		}
+		tlsConfigs = append(tlsConfigs, tlsConfig)
 	}
+
 	// The only timeout we care about is the configured scrape timeout.
 	// It is applied on request. So we leave out any timings here.
 	var rt http.RoundTripper = &http.Transport{
@@ -45,7 +51,7 @@ func NewClientFromConfig(cfg config_util.HTTPClientConfig, name string) (*http.C
 		MaxIdleConns:        20000,
 		MaxIdleConnsPerHost: 1000, // see https://github.com/golang/go/issues/13801
 		DisableKeepAlives:   false,
-		TLSClientConfig:     tlsConfig,
+		TLSClientConfig:     tlsConfigs[0],
 		DisableCompression:  true,
 		// 5 minutes is typically above the maximum sane scrape interval. So we can
 		// use keepalive for all configurations.

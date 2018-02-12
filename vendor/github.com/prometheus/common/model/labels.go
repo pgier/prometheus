@@ -78,6 +78,9 @@ const (
 	// QuantileLabel is used for the label that defines the quantile in a
 	// summary.
 	QuantileLabel = "quantile"
+
+	// TLSServerNameLabel contains the tls_server_name config value
+	TLSServerNameLabel = "__tls_server_name__"
 )
 
 // LabelNameRE is a regular expression matching valid label names. Note that the

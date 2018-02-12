@@ -223,7 +223,7 @@ func (sp *scrapePool) reload(cfg *config.ScrapeConfig) {
 	for fp, oldLoop := range sp.loops {
 		var (
 			t       = sp.targets[fp]
-			s       = &targetScraper{Target: t, client: sp.client, timeout: timeout}
+			s       = &targetScraper{Target: t, client: sp.getHTTPClient(t), timeout: timeout}
 			newLoop = sp.newLoop(t, s)
 		)
 		wg.Add(1)
@@ -294,7 +294,7 @@ func (sp *scrapePool) sync(targets []*Target) {
 		uniqueTargets[hash] = struct{}{}
 
 		if _, ok := sp.targets[hash]; !ok {
-			s := &targetScraper{Target: t, client: sp.client, timeout: timeout}
+			s := &targetScraper{Target: t, client: sp.getHTTPClient(t), timeout: timeout}
 			l := sp.newLoop(t, s)
 
 			sp.targets[hash] = t
@@ -329,6 +329,30 @@ func (sp *scrapePool) sync(targets []*Target) {
 	// may be active and tries to insert. The old scraper that didn't terminate yet could still
 	// be inserting a previous sample set.
 	wg.Wait()
+}
+
+// getHTTPClient checks if the TLS ServerName was set via a relabel config
+// if ServerName was not relabeled, it just returns the existing client
+// otherwise creates a new http.Client with the appropriate ServerName
+func (sp *scrapePool) getHTTPClient(t *Target) *http.Client {
+	httpClient := sp.client
+	tlsServerName := t.labels.Get(model.TLSServerNameLabel)
+	if tlsServerName != "" && tlsServerName != sp.config.HTTPClientConfig.TLSConfig.ServerName {
+		level.Debug(sp.logger).Log("msg", "Found relabeled tls config, creating new httpClient",
+			"target", t.String(), "tls_server_name", tlsServerName)
+		spTLSConfig := sp.config.HTTPClientConfig.TLSConfig
+		spTLSConfig.ServerName = tlsServerName
+		tlsConfig, err := httputil.NewTLSConfig(spTLSConfig)
+		if err != nil {
+			level.Error(sp.logger).Log("msg", "Error creating TLS config", "err", err)
+		}
+		httpClient, err = httputil.NewClientFromConfig(sp.config.HTTPClientConfig,
+			sp.config.JobName, tlsConfig)
+		if err != nil {
+			level.Error(sp.logger).Log("msg", "Error creating HTTP client", "err", err)
+		}
+	}
+	return httpClient
 }
 
 func (sp *scrapePool) mutateSampleLabels(lset labels.Labels, target *Target) labels.Labels {

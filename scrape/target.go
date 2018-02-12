@@ -264,6 +264,7 @@ func populateLabels(lset labels.Labels, cfg *config.ScrapeConfig) (res, orig lab
 		{Name: model.JobLabel, Value: cfg.JobName},
 		{Name: model.MetricsPathLabel, Value: cfg.MetricsPath},
 		{Name: model.SchemeLabel, Value: cfg.Scheme},
+		{Name: model.TLSServerNameLabel, Value: cfg.HTTPClientConfig.TLSConfig.ServerName},
 	}
 	lb := labels.NewBuilder(lset)
 
